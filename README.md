@@ -23,7 +23,7 @@
     box-sizing: border-box;
   }
 
-  /* ヘッダー部（左上に虫眼鏡） */
+  /* ヘッダー部 */
   .header {
     display: flex;
     justify-content: space-between;
@@ -95,8 +95,18 @@
     padding-bottom: 2px;
   }
 
-  /* 入力画面のレイアウト（初期は非表示） */
-  #input-screen {
+  /* 最終問題ボタンのエリア */
+  .final-btn-container {
+    padding-top: 15px;
+  }
+  .btn-final {
+    background-color: #ff9800;
+    color: white;
+    margin-bottom: 0; /* 下部の隙間を無くす */
+  }
+
+  /* 各種画面の共通レイアウト（初期は非表示） */
+  .screen-overlay {
     display: none;
     height: 100vh;
     flex-direction: column;
@@ -115,6 +125,10 @@
   .input-container h2 {
     margin-top: 0;
     color: #333;
+  }
+  .input-container p {
+    color: #666;
+    margin-bottom: 20px;
   }
   input[type="text"] {
     width: 100%;
@@ -150,6 +164,16 @@
     margin-bottom: 15px;
     display: none;
   }
+
+  /* クリア画面専用のデザイン */
+  #clear-screen {
+    background-color: #fffde7;
+  }
+  .clear-title {
+    color: #fbc02d;
+    font-size: 2rem;
+    margin-bottom: 15px;
+  }
 </style>
 </head>
 <body>
@@ -164,10 +188,14 @@
     <div class="list-container" id="quiz-list">
       <!-- ここにJavaScriptでマスの要素が生成されます -->
     </div>
+    <!-- 追加：最終問題へのボタン -->
+    <div class="final-btn-container">
+      <button class="btn-final" onclick="openFinalScreen()">最終問題に挑戦する</button>
+    </div>
   </div>
 
-  <!-- 解答入力画面 -->
-  <div id="input-screen">
+  <!-- 各謎の解答入力画面 -->
+  <div id="input-screen" class="screen-overlay">
     <div class="input-container">
       <h2 id="current-quiz-title">謎 1</h2>
       <p>この謎の答えを入力してください</p>
@@ -180,9 +208,31 @@
     </div>
   </div>
 
+  <!-- 追加：最終問題の解答入力画面 -->
+  <div id="final-screen" class="screen-overlay">
+    <div class="input-container">
+      <h2>最終問題</h2>
+      <p>集めた8つの文字を順番に入力してください</p>
+      
+      <input type="text" id="final-answer-input" placeholder="最終キーワードを入力" autocomplete="off">
+      <div class="error-msg" id="final-error-message">キーワードが違います。集めた文字を確認しよう！</div>
+      
+      <button class="btn-submit" onclick="checkFinalAnswer()" style="background-color: #ff9800;">解答する</button>
+      <button class="btn-back" onclick="goHomeFromFinal()">一覧に戻る</button>
+    </div>
+  </div>
+
+  <!-- 追加：ゲームクリア画面 -->
+  <div id="clear-screen" class="screen-overlay">
+    <div class="input-container">
+      <h1 class="clear-title">🎉 CLEAR! 🎉</h1>
+      <p>すべての謎を解き明かし、<br>最終キーワードを見つけ出しました！</p>
+      <p style="font-weight: bold; margin-top: 20px;">おめでとうございます！</p>
+    </div>
+  </div>
+
   <script>
-    // --- 謎と特定の文字の位置（highlightPos）の設定 ---
-    // highlightPos: 何文字目の色を変えるか（1文字目なら1）
+    // --- 謎の設定 ---
     const quizzes = [
       { id: 1, label: "謎 1", answer: "すなはま", highlightPos: 4, solved: false },
       { id: 2, label: "謎 2", answer: "しーらかんす",      highlightPos: 2, solved: false },
@@ -194,9 +244,12 @@
       { id: 8, label: "謎 8", answer: "ふぁいなる",  highlightPos: 5, solved: false }
     ];
 
+    // 最終問題の答え（設定したハイライト文字をつなげたもの）
+    const FINAL_ANSWER = "としょしりょうしつ";
+
     let currentQuizId = null;
 
-    // ホーム画面のリストを描画する関数
+    // ホーム画面のリストを描画
     function renderList() {
       const list = document.getElementById('quiz-list');
       list.innerHTML = '';
@@ -214,20 +267,17 @@
         answerText.className = 'quiz-answer';
 
         if (quiz.solved) {
-          // 解答済みの場合、文字を1文字ずつチェックして色を変える
           answerText.innerHTML = ''; 
           for (let i = 0; i < quiz.answer.length; i++) {
             const charSpan = document.createElement('span');
             charSpan.textContent = quiz.answer[i];
             
-            // 現在の文字数（i + 1）が設定した highlightPos と同じならクラスを付与
             if (i + 1 === quiz.highlightPos) {
               charSpan.className = 'highlight-char';
             }
             answerText.appendChild(charSpan);
           }
         } else {
-          // 未解答の場合
           answerText.textContent = '???';
         }
 
@@ -237,7 +287,7 @@
       });
     }
 
-    // 入力画面を開く関数
+    // 各謎の入力画面を開く
     function openInputScreen(id) {
       currentQuizId = id;
       const quiz = quizzes.find(q => q.id === id);
@@ -250,14 +300,14 @@
       document.getElementById('input-screen').style.display = 'flex';
     }
 
-    // ホーム画面に戻る関数
+    // 各謎の入力画面からホームに戻る
     function goHome() {
       document.getElementById('input-screen').style.display = 'none';
       document.getElementById('home-screen').style.display = 'flex';
       renderList();
     }
 
-    // 答え合わせをする関数
+    // 各謎の答え合わせ
     function checkAnswer() {
       const inputElement = document.getElementById('answer-input');
       const userInput = inputElement.value.trim();
@@ -277,6 +327,38 @@
       }
     }
 
+    // --- 最終問題用の関数 ---
+
+    // 最終問題画面を開く
+    function openFinalScreen() {
+      document.getElementById('home-screen').style.display = 'none';
+      document.getElementById('final-error-message').style.display = 'none';
+      document.getElementById('final-answer-input').value = '';
+      document.getElementById('final-screen').style.display = 'flex';
+    }
+
+    // 最終問題画面からホームに戻る
+    function goHomeFromFinal() {
+      document.getElementById('final-screen').style.display = 'none';
+      document.getElementById('home-screen').style.display = 'flex';
+    }
+
+    // 最終問題の答え合わせ
+    function checkFinalAnswer() {
+      const inputElement = document.getElementById('final-answer-input');
+      const userInput = inputElement.value.trim();
+
+      if (userInput === FINAL_ANSWER) {
+        // 正解したらクリア画面を表示
+        document.getElementById('final-screen').style.display = 'none';
+        document.getElementById('clear-screen').style.display = 'flex';
+      } else {
+        // 不正解
+        document.getElementById('final-error-message').style.display = 'block';
+      }
+    }
+
+    // 初期化
     window.onload = () => {
       renderList();
     };
